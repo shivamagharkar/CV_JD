@@ -105,8 +105,8 @@ def call_openai_for_enrichment(prompt):
     return enriched_data
 
 def build_cv_enrichment_prompt(cv_data):
-    prompt = f"""You are an expert in CV enrichment. Analyze the provided CV data and infer the following enrichment parameters:
-... [SNIPPED for brevity, keep your original prompt here] ...
+    prompt = f"""You are an expert in CV enrichment. Analyze the provided CV data and infer enrichment parameters.
+[...You can keep your full prompt here...]
 Here is the CV data:
 {json.dumps(cv_data, indent=2)}
 Please analyze and fill in the enrichment parameters. Return the enriched CV data in JSON format. Please respond ONLY with raw JSON.
@@ -114,15 +114,15 @@ Please analyze and fill in the enrichment parameters. Return the enriched CV dat
     return prompt
 
 def build_jd_enrichment_prompt(jd_data):
-    prompt = f"""You are an expert in Job Description enrichment. Analyze the provided Job description data and infer the following enrichment parameters:
-... [SNIPPED for brevity, keep your original prompt here] ...
+    prompt = f"""You are an expert in Job Description enrichment. Analyze the provided JD data and infer enrichment parameters.
+[...You can keep your full prompt here...]
 Here is the job description data:
 {json.dumps(jd_data, indent=2)}
-Please analyze and fill in the enrichment parameters. Return the enriched job description data in JSON format. Please respond ONLY with raw JSON.
+Please analyze and fill in the enrichment parameters. Return the enriched JD data in JSON format. Please respond ONLY with raw JSON.
 """
     return prompt
 
-# --- Streamlit App Interface ---
+# --- Streamlit UI ---
 st.title("CV/JD Analyzer")
 
 # API Key Input

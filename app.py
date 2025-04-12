@@ -5,6 +5,7 @@ import pdfplumber
 import json
 import openai
 from dotenv import load_dotenv
+import re
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -21,6 +22,10 @@ if 'jd_results' not in st.session_state:
 def extract_text_from_pdf(file_path):
     with pdfplumber.open(file_path) as pdf:
         return "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
+
+def strip_json_block(text):
+    # Removes ```json and ``` wrappers
+    return re.sub(r"^```json\s*|```$", "", text.strip(), flags=re.IGNORECASE | re.MULTILINE)
 
 def build_cv_prompt(resume_text):
     json_schema = {
@@ -40,9 +45,11 @@ def build_cv_prompt(resume_text):
         }]
     }
     prompt = f"""You are an expert resume parser. Convert the resume text below into this JSON format. 
-Fill in all the relevant fields. Leave the enrichment_parameters field empty.
+Only return raw JSON without markdown or explanation.
+
 The JSON schema is as follows:
 {json.dumps(json_schema, indent=2)}
+
 Resume:
 \"\"\"
 {resume_text}
@@ -64,14 +71,12 @@ def build_jd_prompt(jd_text):
             "JD Enrichment with Implied Preferences": "", "Cultural Fit Indicators": ""
         }]
     }
-    prompt = f"""You are an expert Job description parser. Convert the job description text below into this JSON format. 
-Fill in all the relevant fields. Leave the enrichment parameters field empty.
-Note that the json schema resembles a resume schema. 
-This is because the end goal is to match the resume with the job description. 
-However, keep in mind that the schema is to be filled with the job description data.
-Again, the enrichment parameters field should be left empty.
+    prompt = f"""You are an expert Job Description parser. Convert the job description text below into this JSON format. 
+Only return raw JSON. Do not include any markdown or explanation.
+
 The JSON schema is as follows:
 {json.dumps(json_schema, indent=2)}
+
 Job Description:
 \"\"\"
 {jd_text}
@@ -86,7 +91,9 @@ def call_openai(prompt):
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
-    return response.choices[0].message.content
+    content = response.choices[0].message.content.strip()
+    content = strip_json_block(content)
+    return content
 
 def call_openai_for_enrichment(prompt):
     openai.api_key = st.session_state['openAI_API_KEY']
@@ -95,30 +102,35 @@ def call_openai_for_enrichment(prompt):
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
+    content = response.choices[0].message.content.strip()
+    content = strip_json_block(content)
     try:
-        enriched_data = json.loads(response.choices[0].message.content)
+        return json.loads(content)
     except json.JSONDecodeError as e:
         st.error(f"Error decoding JSON: {e}")
-        st.text("Response content:")
-        st.text(response.choices[0].message.content)
+        st.text("OpenAI Response Content:")
+        st.text(content)
         return None
-    return enriched_data
 
 def build_cv_enrichment_prompt(cv_data):
     prompt = f"""You are an expert in CV enrichment. Analyze the provided CV data and infer enrichment parameters.
-[...You can keep your full prompt here...]
+Fill in the 'enrichment parameters' field based on the CV content.
+
 Here is the CV data:
 {json.dumps(cv_data, indent=2)}
-Please analyze and fill in the enrichment parameters. Return the enriched CV data in JSON format. Please respond ONLY with raw JSON.
+
+Please respond ONLY with raw JSON.
 """
     return prompt
 
 def build_jd_enrichment_prompt(jd_data):
     prompt = f"""You are an expert in Job Description enrichment. Analyze the provided JD data and infer enrichment parameters.
-[...You can keep your full prompt here...]
+Fill in the 'enrichment parameters' field based on the job description.
+
 Here is the job description data:
 {json.dumps(jd_data, indent=2)}
-Please analyze and fill in the enrichment parameters. Return the enriched JD data in JSON format. Please respond ONLY with raw JSON.
+
+Please respond ONLY with raw JSON.
 """
     return prompt
 
@@ -140,6 +152,9 @@ if cv_file is not None and st.button("Process CV"):
             bytes_data = cv_file.getvalue()
             with BytesIO(bytes_data) as pdf_file:
                 cv_text = extract_text_from_pdf(pdf_file)
+
+            if not cv_text.strip():
+                raise ValueError("The uploaded CV is empty or unreadable.")
 
             cv_prompt = build_cv_prompt(cv_text)
             parsed_cv = call_openai(cv_prompt)
@@ -169,6 +184,9 @@ if jd_file is not None and st.button("Process JD"):
             bytes_data = jd_file.getvalue()
             with BytesIO(bytes_data) as pdf_file:
                 jd_text = extract_text_from_pdf(pdf_file)
+
+            if not jd_text.strip():
+                raise ValueError("The uploaded JD is empty or unreadable.")
 
             jd_prompt = build_jd_prompt(jd_text)
             parsed_jd = call_openai(jd_prompt)

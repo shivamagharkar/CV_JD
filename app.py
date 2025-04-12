@@ -82,7 +82,7 @@ Job Description:
 def call_openai(prompt):
     openai.api_key = st.session_state['openAI_API_KEY']
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
@@ -91,7 +91,7 @@ def call_openai(prompt):
 def call_openai_for_enrichment(prompt):
     openai.api_key = st.session_state['openAI_API_KEY']
     response = openai.ChatCompletion.create(
-        model="gpt-4",
+        model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )

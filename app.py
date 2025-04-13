@@ -4,11 +4,6 @@ import pdfplumber
 import streamlit as st
 from fpdf import FPDF
 from openai import OpenAI
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-openAI_API_KEY = os.getenv("openAI_API_KEY")
 
 # STEP 1: Load PDF and extract text
 def extract_text_from_pdf(file_path):
@@ -222,8 +217,8 @@ Please analyze and fill in the enrichment parameters. Return the enriched job de
     return prompt
 
 # STEP 4: OpenAI API calls
-def call_openai(prompt):
-    client = OpenAI(api_key=openAI_API_KEY)
+def call_openai(prompt, api_key):
+    client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
@@ -231,8 +226,8 @@ def call_openai(prompt):
     )
     return response.choices[0].message.content
 
-def call_openai_for_enrichment(prompt):
-    client = OpenAI(api_key=openAI_API_KEY)
+def call_openai_for_enrichment(prompt, api_key):
+    client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
@@ -278,6 +273,27 @@ def main():
     
     st.title("CV-JD Matching Application")
     st.markdown("This application parses CVs and Job Descriptions, enriches them with AI, and provides insights and interview questions.")
+    
+    # Initialize session state for API key
+    if 'api_key' not in st.session_state:
+        st.session_state.api_key = ""
+    
+    # API Key input
+    api_key_container = st.container()
+    with api_key_container:
+        st.subheader("OpenAI API Key")
+        api_key = st.text_input(
+            "Enter your OpenAI API Key:",
+            type="password",
+            value=st.session_state.api_key,
+            help="Your API key will be used for making calls to the OpenAI API. It will not be stored permanently."
+        )
+        st.session_state.api_key = api_key
+    
+    # Check if API key is provided
+    if not api_key:
+        st.warning("Please enter your OpenAI API Key to use this application.")
+        st.stop()
     
     # Create tabs for the different sections
     tab1, tab2, tab3 = st.tabs(["Upload Files", "Results", "Download"])
@@ -329,15 +345,15 @@ def main():
                         cv_prompt = buildCV_prompt(cv_text)
                         jd_prompt = buildJD_prompt(jd_text)
                         
-                        parsed_cv = json.loads(call_openai(cv_prompt))
-                        parsed_jd = json.loads(call_openai(jd_prompt))
+                        parsed_cv = json.loads(call_openai(cv_prompt, api_key))
+                        parsed_jd = json.loads(call_openai(jd_prompt, api_key))
                         
                         # Enrich parsed data
                         cv_enrichment_prompt = buildCV_enrichment_prompt(parsed_cv)
                         jd_enrichment_prompt = buildJD_enrichment_prompt(parsed_jd)
                         
-                        enriched_cv = call_openai_for_enrichment(cv_enrichment_prompt)
-                        enriched_jd = call_openai_for_enrichment(jd_enrichment_prompt)
+                        enriched_cv = call_openai_for_enrichment(cv_enrichment_prompt, api_key)
+                        enriched_jd = call_openai_for_enrichment(jd_enrichment_prompt, api_key)
                         
                         # Store in session state
                         st.session_state.enriched_cv = enriched_cv
@@ -357,7 +373,7 @@ def main():
                         3. This candidate is applying for the role described in the Job Description. Given the role, what key information is missing from the CV? Sum it up in 5 points.
                         """
                         
-                        flagging_response = call_openai(flagging_prompt)
+                        flagging_response = call_openai(flagging_prompt, api_key)
                         st.session_state.flagging_response = flagging_response
                         
                         missing_points = extract_missing_points(flagging_response)
@@ -370,7 +386,7 @@ def main():
                         {json.dumps(missing_points, indent=2)}
                         """
                         
-                        questionnaire_response = call_openai(questionnaire_prompt)
+                        questionnaire_response = call_openai(questionnaire_prompt, api_key)
                         st.session_state.questionnaire_response = questionnaire_response
                         
                         # Save outputs as PDFs
